@@ -1,0 +1,8 @@
+# Dotenv file
+**/.env
+
+# Cargo
+**/target/
+
+# Misc
+**/.DS_Store
