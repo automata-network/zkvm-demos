@@ -39,14 +39,19 @@ Performs X509 Chain Verification via Bonsai, then submits proof on-chain
 Usage: demo [OPTIONS]
 
 Options:
+Performs X509 Chain Verification via Bonsai, then submits proof on-chain
+
+Usage: demo [OPTIONS]
+
+Options:
   -c, --cert-chain <ONE_OR_MORE_PEM_PATH>
           One or more paths to PEM file(s). If multiple PEM files provided, you must ensure that they are ordered bottom-top from leaf to root
       --rpc <RPC_URL>
-          Optional: RPC URL [default: https://automata-testnet.alt.technology]
+          Sepolia RPC_URL
       --contract <CONTRACT_ADDRESS>
-          Optional: X509 Chain Demo Contract Address [default: 7eD4D92f114A002B5025614b12Ba9F00b40a273d]
+          Optional: X509 Chain Demo Contract Address [default: E422F19773Cb4640a1CdAe635E7d74C59CC8Ce10]
   -w, --wallet-key <WALLET>
-          REQUIRED: if the verify option is enabled, the user must provide an Ethereum Wallet Key
+          REQUIRED: if the verify option is enabled, The user must provide an Ethereum Wallet Key
   -v, --verify
           Verify the provided cert chain If not specified, attempts to fetch the Journal on-chain
   -h, --help
@@ -58,7 +63,7 @@ Options:
 To submit verification of the X509 Certificate Chain, pass one or more `-c` arguments followed by the path to PEM file(s). You must pass along the `-v` flag to enable the verifier and your wallet key to the `-w` flag. Run the following command for an example:
 
 ```bash
-RUST_LOG="info" ./target/release/demo -c ./samples/attestation.pem -w <WALLET_KEY> -v
+RUST_LOG="info" ./target/release/demo -c ./samples/attestation.pem -v -w <WALLET_KEY>
 ```
 
 Upon successful verification, the journal will then be submitted on-chain.
@@ -68,3 +73,9 @@ To retrieve an existing journal for a verified X509 Certificate Chain, you may s
 ```bash
 ./target/release/demo -c ./samples/attestation.pem
 ```
+
+---
+
+## Sepolia Faucet
+
+The demo is currently deployed on Sepolia. Feel free to use our Sepolia [faucet](https://www.sepoliafaucet.io/) to get your wallet funded for testing!

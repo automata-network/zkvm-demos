@@ -1,8 +1,16 @@
 use std::{path::PathBuf, str::FromStr, time::Duration};
 use alloy::{
-    dyn_abi::SolType, network::EthereumWallet, primitives::{Address, Bytes}, providers::ProviderBuilder, rpc::types::TransactionReceipt, signers::{k256::ecdsa::SigningKey, local::PrivateKeySigner}, sol, sol_types::SolValue, transports::http::reqwest::Url
+    dyn_abi::SolType, 
+    network::EthereumWallet, 
+    primitives::{Address, Bytes}, 
+    providers::ProviderBuilder, 
+    rpc::types::TransactionReceipt, 
+    signers::{k256::ecdsa::SigningKey, 
+        local::PrivateKeySigner
+    }, 
+    sol, 
+    transports::http::reqwest::Url
 };
-use risc0_ethereum_contracts::groth16;
 use anyhow::{Error, Result, Context};
 use clap::Parser;
 use bonsai_sdk::alpha as bonsai_sdk;
@@ -25,11 +33,11 @@ struct Cli {
     cert_chain: Vec<PathBuf>,
 
     /// Optional: RPC URL
-    #[arg(long = "rpc", value_name = "RPC_URL", default_value_t = String::from("https://automata-testnet.alt.technology"))]
+    #[arg(long = "rpc", value_name = "RPC_URL", default_value_t = String::from("https://eth-sepolia.public.blastapi.io"))]
     rpc_url: String,
 
     /// Optional: X509 Chain Demo Contract Address
-    #[arg(long = "contract", value_name = "CONTRACT_ADDRESS", default_value_t = String::from("7eD4D92f114A002B5025614b12Ba9F00b40a273d"))]
+    #[arg(long = "contract", value_name = "CONTRACT_ADDRESS", default_value_t = String::from("E422F19773Cb4640a1CdAe635E7d74C59CC8Ce10"))]
     address: String,
 
     /// REQUIRED: if the verify option is enabled,
@@ -95,8 +103,10 @@ fn main() -> Result<()> {
             return Err(Error::msg("Missing wallet key"));
         }
 
+        log::info!("Submitting input to Bonsai...");
         let input = InputBytesType::abi_encode_params(&der_chain);
         let seal = prove(&input)?;
+        log::info!("Submitting SNARK proof on-chain...");
 
         let rt = tokio::runtime::Runtime::new().unwrap();
         let transaction_receipt = rt.block_on(verify_cert_chain_proof(
@@ -104,7 +114,7 @@ fn main() -> Result<()> {
             der_chain, 
             &seal
         ))?;
-        println!("Cert Chain Verified at https://testnet-explorer.ata.network/tx/0x{}", transaction_receipt.transaction_hash.to_string());
+        println!("Cert Chain Verified at https://sepolia.etherscan.io/tx/0x{}", transaction_receipt.transaction_hash.to_string());
 
     } else {
         log::info!("Getting journal...");
@@ -262,7 +272,10 @@ fn prove(input: &[u8]) -> Result<Vec<u8>> {
     };
 
     let snark = snark_receipt.snark.to_vec();
-    let seal = groth16::encode(snark).context("Read seal")?;
+
+    let mut seal = Vec::with_capacity(4 + snark.len());
+    seal.extend_from_slice(&hex::decode("310fe598")?);
+    seal.extend_from_slice(&snark);
 
     Ok(seal)
 }
