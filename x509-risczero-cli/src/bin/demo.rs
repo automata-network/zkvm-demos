@@ -1,4 +1,5 @@
 use std::{path::PathBuf, str::FromStr, time::Duration};
+use risc0_zkvm::compute_image_id;
 use alloy::{
     dyn_abi::SolType, 
     network::EthereumWallet, 
@@ -14,10 +15,8 @@ use alloy::{
 use anyhow::{Error, Result, Context};
 use clap::Parser;
 use bonsai_sdk::alpha as bonsai_sdk;
-
 use x509_parser::prelude::*;
-
-const X509_IMAGE_ID: &str = "a20a7e4d0a232f1a7858439acc777f0601e8f5be7bdeb2cec144c14a779a4424";
+use x509_risczero_cli::X509_CHAIN_VERIFIER_ELF;
 
 type InputBytesType = sol!(bytes[]);
 
@@ -114,13 +113,13 @@ fn main() -> Result<()> {
             der_chain, 
             &seal
         ))?;
-        println!("Cert Chain Verified at https://sepolia.etherscan.io/tx/0x{}", transaction_receipt.transaction_hash.to_string());
+        println!("Cert Chain Verified at https://sepolia.etherscan.io/tx/{}", transaction_receipt.transaction_hash.to_string());
 
     } else {
         log::info!("Getting journal...");
         let rt = tokio::runtime::Runtime::new().unwrap();
         let journal = rt.block_on(read_journal(chain, der_chain))?;
-        println!("Journal: {:?}", journal);
+        println!("{:?}", journal);
     }
     
     Ok(())
@@ -206,7 +205,10 @@ fn prove(input: &[u8]) -> Result<Vec<u8>> {
         std::env::var("RISC_ZERO_VERSION").unwrap_or_else(|_| "1.0.1".to_string());
     let client = bonsai_sdk::Client::from_env(&risc_zero_version)?;
 
-    let image_id_hex = String::from(X509_IMAGE_ID);
+    let image_id = compute_image_id(X509_CHAIN_VERIFIER_ELF)?;
+    let image_id_hex = image_id.to_string();
+    client.upload_img(&image_id_hex, X509_CHAIN_VERIFIER_ELF.to_vec())?;
+    log::info!("ImageID: {}", image_id_hex);
 
     // Prepare input data and upload it.
     let input_id = client.upload_input(input.to_vec())?;
