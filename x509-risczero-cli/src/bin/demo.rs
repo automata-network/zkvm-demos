@@ -1,20 +1,17 @@
-use std::{path::PathBuf, str::FromStr, time::Duration};
-use risc0_zkvm::compute_image_id;
 use alloy::{
-    dyn_abi::SolType, 
-    network::EthereumWallet, 
-    primitives::{Address, Bytes}, 
-    providers::ProviderBuilder, 
-    rpc::types::TransactionReceipt, 
-    signers::{k256::ecdsa::SigningKey, 
-        local::PrivateKeySigner
-    }, 
-    sol, 
-    transports::http::reqwest::Url
+    dyn_abi::SolType,
+    network::EthereumWallet,
+    primitives::{Address, Bytes},
+    providers::ProviderBuilder,
+    rpc::types::TransactionReceipt,
+    signers::{k256::ecdsa::SigningKey, local::PrivateKeySigner},
+    sol,
+    transports::http::reqwest::Url,
 };
-use anyhow::{Error, Result, Context};
+use anyhow::Result;
 use clap::Parser;
-use bonsai_sdk::alpha as bonsai_sdk;
+use risc0_zkvm::{default_prover, ExecutorEnv, ProverOpts};
+use std::{env, path::PathBuf, str::FromStr};
 use x509_parser::prelude::*;
 use x509_risczero_cli::X509_CHAIN_VERIFIER_ELF;
 
@@ -47,13 +44,13 @@ struct Cli {
     /// Verify the provided cert chain
     /// If not specified, attempts to fetch the Journal on-chain
     #[arg(short = 'v', long = "verify")]
-    verify: bool
+    verify: bool,
 }
 
 struct Chain {
     pub rpc_url: Url,
     pub contract_address: Address,
-    pub wallet: Option<EthereumWallet>
+    pub wallet: Option<EthereumWallet>,
 }
 
 impl Chain {
@@ -61,15 +58,15 @@ impl Chain {
         Chain {
             rpc_url: rpc_url_str.parse().unwrap(),
             contract_address: Address::from_str(address).unwrap(),
-            wallet: None
+            wallet: None,
         }
     }
 
     fn set_wallet(&mut self, wallet_key: &str) {
         let signer_key =
-        SigningKey::from_slice(&hex::decode(wallet_key).unwrap()).expect("Invalid key");
+            SigningKey::from_slice(&hex::decode(wallet_key).unwrap()).expect("Invalid key");
         let wallet = EthereumWallet::from(PrivateKeySigner::from_signing_key(signer_key));
-    
+
         self.wallet = Some(wallet);
     }
 }
@@ -89,39 +86,58 @@ fn main() -> Result<()> {
 
     // Step 2: Create a Chain instance
     let mut chain = Chain::new(
-        remove_prefix_if_found(&cli.rpc_url), 
-        remove_prefix_if_found(&cli.address)
+        remove_prefix_if_found(&cli.rpc_url),
+        remove_prefix_if_found(&cli.address),
     );
 
     // Step 3
     if cli.verify {
+        let input = InputBytesType::abi_encode_params(&der_chain);
+        let is_dev_mode = if let Ok(dev_mode) = env::var("RISC0_DEV_MODE") {
+            dev_mode == "true" || dev_mode == "1"
+        } else {
+            false
+        };
+        let bonsai_configured =
+            env::var("BONSAI_API_KEY").is_ok() && env::var("BONSAI_API_URL").is_ok();
+        let prover_mode_is_bonsai = if let Ok(prover_mode) = env::var("RISC0_PROVER") {
+            bonsai_configured && prover_mode != "local" && prover_mode != "ipc" && !is_dev_mode
+        } else {
+            bonsai_configured && !is_dev_mode
+        };
+        
+        if prover_mode_is_bonsai {
+            log::info!("Begin proving on Bonsai...");
+        } else if is_dev_mode {
+            log::info!("Proving in DEV_MODE...");
+        } else {
+            log::info!("Begin proving locally...");
+        }
+        let seal = prove(&input)?;
+
         // A wallet is required to store the Journal on-chain
         if let Some(wallet_key) = &cli.wallet {
-            chain.set_wallet(wallet_key.as_str());
-        } else {
-            return Err(Error::msg("Missing wallet key"));
+            if prover_mode_is_bonsai {
+                log::info!("Submitting SNARK proof on-chain...");
+                chain.set_wallet(wallet_key.as_str());
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                let transaction_receipt =
+                    rt.block_on(verify_cert_chain_proof(chain, der_chain, &seal))?;
+                println!(
+                    "Cert Chain Verified at https://sepolia.etherscan.io/tx/{}",
+                    transaction_receipt.transaction_hash.to_string()
+                );
+            }
         }
-
-        log::info!("Submitting input to Bonsai...");
-        let input = InputBytesType::abi_encode_params(&der_chain);
-        let seal = prove(&input)?;
-        log::info!("Submitting SNARK proof on-chain...");
-
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let transaction_receipt = rt.block_on(verify_cert_chain_proof(
-            chain, 
-            der_chain, 
-            &seal
-        ))?;
-        println!("Cert Chain Verified at https://sepolia.etherscan.io/tx/{}", transaction_receipt.transaction_hash.to_string());
-
     } else {
         log::info!("Getting journal...");
         let rt = tokio::runtime::Runtime::new().unwrap();
         let journal = rt.block_on(read_journal(chain, der_chain))?;
         println!("{:?}", journal);
     }
-    
+
+    println!("Job completed.");
+
     Ok(())
 }
 
@@ -147,10 +163,7 @@ sol! {
 
 async fn read_journal(chain_config: Chain, der_chain: Vec<Vec<u8>>) -> Result<Journal> {
     let provider = ProviderBuilder::new().on_http(chain_config.rpc_url);
-    let contract = X509VerifierDemo::new(
-        chain_config.contract_address,
-        &provider
-    );
+    let contract = X509VerifierDemo::new(chain_config.contract_address, &provider);
 
     let mut encoded: Vec<Bytes> = Vec::with_capacity(der_chain.len());
     for der in der_chain.iter() {
@@ -166,27 +179,20 @@ async fn read_journal(chain_config: Chain, der_chain: Vec<Vec<u8>>) -> Result<Jo
 async fn verify_cert_chain_proof(
     chain_config: Chain,
     der_chain: Vec<Vec<u8>>,
-    seal: &[u8]
+    seal: &[u8],
 ) -> Result<TransactionReceipt> {
     let provider = ProviderBuilder::new()
         .with_recommended_fillers()
         .wallet(chain_config.wallet.unwrap())
-        .on_http(chain_config.rpc_url)
-    ;
-    let contract = X509VerifierDemo::new(
-        chain_config.contract_address,
-        &provider
-    );
+        .on_http(chain_config.rpc_url);
+    let contract = X509VerifierDemo::new(chain_config.contract_address, &provider);
 
     let mut encoded: Vec<Bytes> = Vec::with_capacity(der_chain.len());
     for der in der_chain.iter() {
         encoded.push(Bytes::copy_from_slice(&der));
     }
 
-    let tx_builder = contract.verifyX509ChainProof(
-        encoded, 
-        Bytes::copy_from_slice(seal)
-    );
+    let tx_builder = contract.verifyX509ChainProof(encoded, Bytes::copy_from_slice(seal));
     let receipt = tx_builder.send().await?.get_receipt().await?;
 
     Ok(receipt)
@@ -201,79 +207,13 @@ fn remove_prefix_if_found(h: &str) -> &str {
 }
 
 fn prove(input: &[u8]) -> Result<Vec<u8>> {
-    let risc_zero_version =
-        std::env::var("RISC_ZERO_VERSION").unwrap_or_else(|_| "1.0.1".to_string());
-    let client = bonsai_sdk::Client::from_env(&risc_zero_version)?;
+    let env = ExecutorEnv::builder().write_slice(&input).build()?;
 
-    let image_id = compute_image_id(X509_CHAIN_VERIFIER_ELF)?;
-    let image_id_hex = image_id.to_string();
-    client.upload_img(&image_id_hex, X509_CHAIN_VERIFIER_ELF.to_vec())?;
-    log::info!("ImageID: {}", image_id_hex);
+    let receipt = default_prover()
+        .prove_with_opts(env, X509_CHAIN_VERIFIER_ELF, &ProverOpts::groth16())?
+        .receipt;
 
-    // Prepare input data and upload it.
-    let input_id = client.upload_input(input.to_vec())?;
-
-    log::info!("InputID: {}", input_id);
-
-    // Start a session running the prover.
-    let session = client.create_session(image_id_hex, input_id, vec![])?;
-    log::info!("Prove session created, uuid: {}", session.uuid);
-    let _receipt = loop {
-        let res = session.status(&client)?;
-        if res.status == "RUNNING" {
-            std::thread::sleep(Duration::from_secs(15));
-            continue;
-        }
-        if res.status == "SUCCEEDED" {
-            log::info!("Prove session is successful!");
-            // Download the receipt, containing the output.
-            let receipt_url = res
-                .receipt_url
-                .context("API error, missing receipt on completed session")?;
-
-            log::info!("Receipt URL: {}", &receipt_url);
-
-            // break receipt;
-            break;
-        }
-
-        panic!(
-            "Workflow exited: {} | SessionId: {} | err: {}",
-            res.status,
-            session.uuid,
-            res.error_msg.unwrap_or_default()
-        );
-    };
-
-    // Fetch the snark.
-    let snark_session = client.create_snark(session.uuid)?;
-    log::info!(
-        "Proof to SNARK session created, uuid: {}",
-        snark_session.uuid
-    );
-    let snark_receipt = loop {
-        let res = snark_session.status(&client)?;
-        match res.status.as_str() {
-            "RUNNING" => {
-                std::thread::sleep(Duration::from_secs(15));
-                continue;
-            }
-            "SUCCEEDED" => {
-                log::info!("Snark session is successful!");
-                break res.output.context("No snark generated :(")?;
-            }
-            _ => {
-                panic!(
-                    "Workflow exited: {} | SessionId: {} | err: {}",
-                    res.status,
-                    snark_session.uuid,
-                    res.error_msg.unwrap_or_default()
-                );
-            }
-        }
-    };
-
-    let snark = snark_receipt.snark.to_vec();
+    let snark = receipt.inner.groth16()?.seal.clone();
 
     let mut seal = Vec::with_capacity(4 + snark.len());
     seal.extend_from_slice(&hex::decode("310fe598")?);

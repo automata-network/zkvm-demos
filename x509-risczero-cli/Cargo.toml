@@ -6,10 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-risc0-zkvm = { version = "1.0.4", features = ["std"] }
+risc0-zkvm = { version = "1.0.5", features = ["std", "prove", "metal"] }
 alloy = { version = "0.2.1", features = ["full", "node-bindings"] }
 anyhow = { version = "1.0.75" }
-bonsai-sdk = { version = "0.7" }
 clap = { version = "4.0", features = ["derive", "env"] }
 env_logger = { version = "0.10" }
 hex = { version = "0.4" }
