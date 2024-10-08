@@ -10,7 +10,7 @@ use alloy::{
 };
 use anyhow::Result;
 use clap::Parser;
-use risc0_zkvm::{default_prover, ExecutorEnv, ProverOpts};
+use risc0_zkvm::{compute_image_id, default_prover, ExecutorEnv, ProverOpts};
 use std::{env, path::PathBuf, str::FromStr};
 use x509_parser::prelude::*;
 use x509_risczero_cli::X509_CHAIN_VERIFIER_ELF;
@@ -105,7 +105,7 @@ fn main() -> Result<()> {
         } else {
             bonsai_configured && !is_dev_mode
         };
-        
+
         if prover_mode_is_bonsai {
             log::info!("Begin proving on Bonsai...");
         } else if is_dev_mode {
@@ -113,7 +113,7 @@ fn main() -> Result<()> {
         } else {
             log::info!("Begin proving locally...");
         }
-        let seal = prove(&input)?;
+        let seal = prove(&input, prover_mode_is_bonsai)?;
 
         // A wallet is required to store the Journal on-chain
         if let Some(wallet_key) = &cli.wallet {
@@ -206,18 +206,29 @@ fn remove_prefix_if_found(h: &str) -> &str {
     }
 }
 
-fn prove(input: &[u8]) -> Result<Vec<u8>> {
+fn prove(input: &[u8], prover_mode_is_bonsai: bool) -> Result<Vec<u8>> {
     let env = ExecutorEnv::builder().write_slice(&input).build()?;
 
-    let receipt = default_prover()
-        .prove_with_opts(env, X509_CHAIN_VERIFIER_ELF, &ProverOpts::groth16())?
-        .receipt;
+    log::info!("ImageID: {}", compute_image_id(X509_CHAIN_VERIFIER_ELF).unwrap().to_string());
 
-    let snark = receipt.inner.groth16()?.seal.clone();
+    if prover_mode_is_bonsai {
+        let receipt = default_prover()
+            .prove_with_opts(env, X509_CHAIN_VERIFIER_ELF, &ProverOpts::groth16())?
+            .receipt;
 
-    let mut seal = Vec::with_capacity(4 + snark.len());
-    seal.extend_from_slice(&hex::decode("310fe598")?);
-    seal.extend_from_slice(&snark);
+        let snark = receipt.inner.groth16()?.seal.clone();
 
-    Ok(seal)
+        let mut seal = Vec::with_capacity(4 + snark.len());
+        seal.extend_from_slice(&hex::decode("310fe598")?);
+        seal.extend_from_slice(&snark);
+
+        Ok(seal)
+    } else {
+        // generate STARK proof when run locally
+        let receipt = default_prover()
+            .prove(env, X509_CHAIN_VERIFIER_ELF)?
+            .receipt;
+        println!("Receipt: {:?}", receipt);
+        Ok(vec![])
+    }
 }
