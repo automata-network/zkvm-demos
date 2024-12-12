@@ -6,11 +6,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-risc0-zkvm = { version = "=1.0.5", features = ["std", "prove", "metal"] }
-risc0-sys = { version = "=1.0.5" }
-risc0-zkvm-platform = { version = "=1.0.5" }
-risc0-core = { version = "=1.0.5" }
-alloy = { version = "0.2.1", features = ["full", "node-bindings"] }
+risc0-zkvm = { version = "=1.2.0", features = ["std", "prove"] }
+risc0-sys = { version = "=1.2.0" }
+risc0-zkvm-platform = { version = "=1.2.0" }
+risc0-core = { version = "=1.2.0" }
+risc0-ethereum-contracts = { git = "https://github.com/risc0/risc0-ethereum", tag = "v1.2.0" }
+alloy = { version = "0.6", features = ["full", "node-bindings"] }
 anyhow = { version = "1.0.75" }
 clap = { version = "4.0", features = ["derive", "env"] }
 env_logger = { version = "0.10" }
@@ -20,4 +21,4 @@ tokio = { version = "1.35", features = ["full"] }
 x509-parser = "0.16.0"
 
 [build-dependencies]
-risc0-build-kernel = { version = "=1.0.5" }
+risc0-build-kernel = { version = "=1.2.0" }

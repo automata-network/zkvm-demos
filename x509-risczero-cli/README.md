@@ -14,7 +14,7 @@ Make sure you are running `cargo-risczero` at `v1.2.0`. Run the following comman
 cargo risczero --version
 ```
 
-You shouldn't have issues verifying proofs on-chain as long as you are running `cargo-risczero` at `>=v1.1.0`.
+You shouldn't have issues verifying proofs on-chain as long as you are running `cargo-risczero` at `v1.2.x`.
 
 1. Configure the Prover 
 

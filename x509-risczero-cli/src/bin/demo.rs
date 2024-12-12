@@ -10,7 +10,9 @@ use alloy::{
 };
 use anyhow::Result;
 use clap::Parser;
+use nom::AsBytes;
 use risc0_zkvm::{compute_image_id, default_prover, ExecutorEnv, ProverOpts};
+use risc0_ethereum_contracts::groth16;
 use std::{env, path::PathBuf, str::FromStr};
 use x509_parser::prelude::*;
 use x509_risczero_cli::X509_CHAIN_VERIFIER_ELF;
@@ -193,6 +195,7 @@ async fn verify_cert_chain_proof(
     }
 
     let tx_builder = contract.verifyX509ChainProof(encoded, Bytes::copy_from_slice(seal));
+    log::debug!("Calldata: {}", hex::encode(tx_builder.calldata().as_bytes()));
     let receipt = tx_builder.send().await?.get_receipt().await?;
 
     Ok(receipt)
@@ -218,9 +221,7 @@ fn prove(input: &[u8], prover_mode_is_bonsai: bool) -> Result<Vec<u8>> {
 
         let snark = receipt.inner.groth16()?.seal.clone();
 
-        let mut seal = Vec::with_capacity(4 + snark.len());
-        seal.extend_from_slice(&hex::decode("310fe598")?);
-        seal.extend_from_slice(&snark);
+        let seal = groth16::encode(&snark)?;
 
         Ok(seal)
     } else {
