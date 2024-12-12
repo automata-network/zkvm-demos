@@ -29,11 +29,11 @@ struct Cli {
     cert_chain: Vec<PathBuf>,
 
     /// Optional: RPC URL
-    #[arg(long = "rpc", value_name = "RPC_URL", default_value_t = String::from("https://eth-sepolia.public.blastapi.io"))]
+    #[arg(long = "rpc", value_name = "RPC_URL", default_value_t = String::from("https://1rpc.io/ata/testnet"))]
     rpc_url: String,
 
     /// Optional: X509 Chain Demo Contract Address
-    #[arg(long = "contract", value_name = "CONTRACT_ADDRESS", default_value_t = String::from("E422F19773Cb4640a1CdAe635E7d74C59CC8Ce10"))]
+    #[arg(long = "contract", value_name = "CONTRACT_ADDRESS", default_value_t = String::from("005537B5cE847Dc3B5C8B9A42B366E7d932431d3"))]
     address: String,
 
     /// REQUIRED: if the verify option is enabled,
@@ -124,7 +124,7 @@ fn main() -> Result<()> {
                 let transaction_receipt =
                     rt.block_on(verify_cert_chain_proof(chain, der_chain, &seal))?;
                 println!(
-                    "Cert Chain Verified at https://sepolia.etherscan.io/tx/{}",
+                    "Cert Chain Verified at https://explorer-testnet.ata.network/tx/{}",
                     transaction_receipt.transaction_hash.to_string()
                 );
             }

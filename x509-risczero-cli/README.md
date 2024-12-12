@@ -8,13 +8,13 @@ Follow these steps to get started with this tool:
 
 0. Install [Rust](https://doc.rust-lang.org/book/ch01-01-installation.html) and [cargo risczero](https://dev.risczero.com/api/zkvm/install)
 
-Make sure you are running `cargo-risczero` at `v1.0.5`. Run the following command to check risczero version:
+Make sure you are running `cargo-risczero` at `v1.2.0`. Run the following command to check risczero version:
 
 ```bash
 cargo risczero --version
 ```
 
-You shouldn't have issues verifying proofs on-chain as long as you are running `cargo-risczero` at `v1.0.x`.
+You shouldn't have issues verifying proofs on-chain as long as you are running `cargo-risczero` at `>=v1.1.0`.
 
 1. Configure the Prover 
 
@@ -60,11 +60,11 @@ Options:
   -c, --cert-chain <ONE_OR_MORE_PEM_PATH>
           One or more paths to PEM file(s). If multiple PEM files provided, you must ensure that they are ordered bottom-top from leaf to root
       --rpc <RPC_URL>
-          Optional: RPC URL [default: https://eth-sepolia.public.blastapi.io]
+          Optional: RPC URL [default: https://1rpc.io/ata/testnet]
       --contract <CONTRACT_ADDRESS>
-          Optional: X509 Chain Demo Contract Address [default: E422F19773Cb4640a1CdAe635E7d74C59CC8Ce10]
+          Optional: X509 Chain Demo Contract Address [default: 005537B5cE847Dc3B5C8B9A42B366E7d932431d3]
   -w, --wallet-key <WALLET>
-          REQUIRED: if the verify option is enabled and running Bonsai Prover, The user must provide an Ethereum Wallet Key
+          REQUIRED: if the verify option is enabled, The user must provide an Ethereum Wallet Key
   -v, --verify
           Verify the provided cert chain If not specified, attempts to fetch the Journal on-chain
   -h, --help
@@ -95,6 +95,6 @@ To retrieve an existing journal for a verified X509 Certificate Chain from the v
 
 ---
 
-## Sepolia Faucet
+## Automata Testnet Faucet
 
-The demo is currently deployed on Sepolia. Feel free to use our Sepolia [faucet](https://www.sepoliafaucet.io/) to get your wallet funded for testing!
+The demo is currently deployed on our testnet. Feel free to use [L2Faucet](https://www.l2faucet.com/) to get your wallet funded for testing!
