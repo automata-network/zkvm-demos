@@ -10,7 +10,9 @@ use alloy::{
 };
 use anyhow::Result;
 use clap::Parser;
+use nom::AsBytes;
 use risc0_zkvm::{compute_image_id, default_prover, ExecutorEnv, ProverOpts};
+use risc0_ethereum_contracts::groth16;
 use std::{env, path::PathBuf, str::FromStr};
 use x509_parser::prelude::*;
 use x509_risczero_cli::X509_CHAIN_VERIFIER_ELF;
@@ -29,11 +31,11 @@ struct Cli {
     cert_chain: Vec<PathBuf>,
 
     /// Optional: RPC URL
-    #[arg(long = "rpc", value_name = "RPC_URL", default_value_t = String::from("https://eth-sepolia.public.blastapi.io"))]
+    #[arg(long = "rpc", value_name = "RPC_URL", default_value_t = String::from("https://1rpc.io/ata/testnet"))]
     rpc_url: String,
 
     /// Optional: X509 Chain Demo Contract Address
-    #[arg(long = "contract", value_name = "CONTRACT_ADDRESS", default_value_t = String::from("E422F19773Cb4640a1CdAe635E7d74C59CC8Ce10"))]
+    #[arg(long = "contract", value_name = "CONTRACT_ADDRESS", default_value_t = String::from("7DDd5855B6b910Cd175bE40D74CdC01211C55225"))]
     address: String,
 
     /// REQUIRED: if the verify option is enabled,
@@ -124,7 +126,7 @@ fn main() -> Result<()> {
                 let transaction_receipt =
                     rt.block_on(verify_cert_chain_proof(chain, der_chain, &seal))?;
                 println!(
-                    "Cert Chain Verified at https://sepolia.etherscan.io/tx/{}",
+                    "Cert Chain Verified at https://explorer-testnet.ata.network/tx/{}",
                     transaction_receipt.transaction_hash.to_string()
                 );
             }
@@ -193,6 +195,7 @@ async fn verify_cert_chain_proof(
     }
 
     let tx_builder = contract.verifyX509ChainProof(encoded, Bytes::copy_from_slice(seal));
+    log::debug!("Calldata: {}", hex::encode(tx_builder.calldata().as_bytes()));
     let receipt = tx_builder.send().await?.get_receipt().await?;
 
     Ok(receipt)
@@ -218,9 +221,7 @@ fn prove(input: &[u8], prover_mode_is_bonsai: bool) -> Result<Vec<u8>> {
 
         let snark = receipt.inner.groth16()?.seal.clone();
 
-        let mut seal = Vec::with_capacity(4 + snark.len());
-        seal.extend_from_slice(&hex::decode("310fe598")?);
-        seal.extend_from_slice(&snark);
+        let seal = groth16::encode(&snark)?;
 
         Ok(seal)
     } else {
