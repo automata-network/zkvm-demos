@@ -92,6 +92,9 @@ fn main() -> Result<()> {
         remove_prefix_if_found(&cli.address),
     );
 
+    let image_id = compute_image_id(X509_CHAIN_VERIFIER_ELF)?;
+    log::info!("ImageID: {}", image_id.to_string());
+
     // Step 3
     if cli.verify {
         let input = InputBytesType::abi_encode_params(&der_chain);
