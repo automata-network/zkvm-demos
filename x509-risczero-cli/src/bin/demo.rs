@@ -35,7 +35,7 @@ struct Cli {
     rpc_url: String,
 
     /// Optional: X509 Chain Demo Contract Address
-    #[arg(long = "contract", value_name = "CONTRACT_ADDRESS", default_value_t = String::from("7DDd5855B6b910Cd175bE40D74CdC01211C55225"))]
+    #[arg(long = "contract", value_name = "CONTRACT_ADDRESS", default_value_t = String::from("005537B5cE847Dc3B5C8B9A42B366E7d932431d3"))]
     address: String,
 
     /// REQUIRED: if the verify option is enabled,
@@ -91,6 +91,9 @@ fn main() -> Result<()> {
         remove_prefix_if_found(&cli.rpc_url),
         remove_prefix_if_found(&cli.address),
     );
+
+    let image_id = compute_image_id(X509_CHAIN_VERIFIER_ELF)?;
+    log::info!("ImageID: {}", image_id.to_string());
 
     // Step 3
     if cli.verify {

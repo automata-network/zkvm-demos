@@ -62,7 +62,7 @@ Options:
       --rpc <RPC_URL>
           Optional: RPC URL [default: https://1rpc.io/ata/testnet]
       --contract <CONTRACT_ADDRESS>
-          Optional: X509 Chain Demo Contract Address [default: 7DDd5855B6b910Cd175bE40D74CdC01211C55225]
+          Optional: X509 Chain Demo Contract Address [default: 005537B5cE847Dc3B5C8B9A42B366E7d932431d3]
   -w, --wallet-key <WALLET>
           REQUIRED: if the verify option is enabled, The user must provide an Ethereum Wallet Key
   -v, --verify
